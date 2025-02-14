@@ -7,7 +7,7 @@ class MainController {
     // @Auth({ strict: true })
     @Route('get', '/')
     getIndex(req: Request, res: Response) {
-        res.status(200).json({ userAgent: req.useragent, ipAddressssssss: req.ip, geoip: req.geo })
+        res.status(200).json({ userAgent: req.useragent, ipMik: req.ip, geoip: req.geo })
     }
 }
 
