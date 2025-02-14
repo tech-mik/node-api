@@ -1,4 +1,4 @@
-import { TEST } from './config';
+import { TEST } from './config'
 
 const colours = {
     reset: '\x1b[0m',
@@ -18,7 +18,7 @@ const colours = {
         magenta: '\x1b[35m',
         cyan: '\x1b[36m',
         white: '\x1b[37m',
-        crimson: '\x1b[38m'
+        crimson: '\x1b[38m',
     },
     bg: {
         black: '\x1b[40m',
@@ -29,32 +29,32 @@ const colours = {
         magenta: '\x1b[45m',
         cyan: '\x1b[46m',
         white: '\x1b[47m',
-        crimson: '\x1b[48m'
-    }
-};
+        crimson: '\x1b[48m',
+    },
+}
 
 export function getCallingFunction(error: Error) {
     try {
-        const stack = error.stack;
+        const stack = error.stack
 
-        if (stack === undefined) return '--';
+        if (stack === undefined) return '--'
 
-        const line = stack.split('\n')[2];
-        const regex = /^.*at\s([a-zA-Z]+).*$/;
-        const groups = line.match(regex);
+        const line = stack.split('\n')[2]
+        const regex = /^.*at\s([a-zA-Z]+).*$/
+        const groups = line.match(regex)
 
-        if (groups === null) return '--';
+        if (groups === null) return '--'
 
-        if (groups.length < 2) return '--';
+        if (groups.length < 2) return '--'
 
-        return groups[1];
+        return groups[1]
     } catch {
-        return '--';
+        return '--'
     }
 }
 
 export function log(message?: any, ...optionalParams: any[]) {
-    if (!TEST) console.log(`[${new Date().toLocaleString()}]`, colours.fg.magenta, '[SERVER-LOG] ', colours.reset, message, ...optionalParams);
+    if (!TEST) console.log(`[${new Date().toLocaleString()}]`, colours.fg.magenta, '[SERVER-LOG] ', colours.reset, message, ...optionalParams)
 }
 
 export function info(message?: any, ...optionalParams: any[]) {
@@ -68,8 +68,8 @@ export function info(message?: any, ...optionalParams: any[]) {
             `[${getCallingFunction(new Error())}]`,
             colours.reset,
             message,
-            ...optionalParams
-        );
+            ...optionalParams,
+        )
 }
 
 export function warn(message?: any, ...optionalParams: any[]) {
@@ -83,8 +83,8 @@ export function warn(message?: any, ...optionalParams: any[]) {
             `[${getCallingFunction(new Error())}]`,
             colours.reset,
             message,
-            ...optionalParams
-        );
+            ...optionalParams,
+        )
 }
 
 export function error(message?: any, ...optionalParams: any[]) {
@@ -98,8 +98,8 @@ export function error(message?: any, ...optionalParams: any[]) {
             `[${getCallingFunction(new Error())}]`,
             colours.reset,
             message,
-            ...optionalParams
-        );
+            ...optionalParams,
+        )
 }
 
 const logging = {
@@ -108,22 +108,22 @@ const logging = {
     warn,
     error,
     warning: warn,
-    getCallingFunction
-};
+    getCallingFunction,
+}
 
 /** Create the global definition */
 declare global {
     var logging: {
-        log: (message?: any, ...optionalParams: any[]) => void;
-        info: (message?: any, ...optionalParams: any[]) => void;
-        warn: (message?: any, ...optionalParams: any[]) => void;
-        warning: (message?: any, ...optionalParams: any[]) => void;
-        error: (message?: any, ...optionalParams: any[]) => void;
-        getCallingFunction: (error: Error) => string;
-    };
+        log: (message?: any, ...optionalParams: any[]) => void
+        info: (message?: any, ...optionalParams: any[]) => void
+        warn: (message?: any, ...optionalParams: any[]) => void
+        warning: (message?: any, ...optionalParams: any[]) => void
+        error: (message?: any, ...optionalParams: any[]) => void
+        getCallingFunction: (error: Error) => string
+    }
 }
 
 /** Link the local and global variable */
-globalThis.logging = logging;
+globalThis.logging = logging
 
-export default logging;
+export default logging
