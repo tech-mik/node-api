@@ -1,7 +1,6 @@
 import { Request } from 'express'
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
-import { FingerprintResult } from 'express-fingerprint'
 
 export function verifyJWT(token: string, secret: string) {
     try {
@@ -17,7 +16,6 @@ export function generateDeviceSignature(req: Request) {
     const platform = req.useragent?.platform ?? 'unknown'
     const acceptEncoding = req.headers['accept-encoding'] ?? 'unknown'
     const country = req.geo?.country ?? 'unknown'
-    // const count = req.useragent?.geoIp?.
 
     return `${browser}${os}${platform}${acceptEncoding}${country}`
 }

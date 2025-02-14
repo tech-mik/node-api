@@ -10,7 +10,7 @@ export function authMiddlewareFactory({ role = null, strict = false }: AuthOptio
         // 1. Check if there is a access_token
         const accessToken = req.headers['authorization']?.split('Bearer ')[1]
         if (!accessToken) {
-            res.status(401).json({ message: 'Unauthorized!' })
+            res.status(401).json({ message: 'Unauthorized' })
             return
         }
 
