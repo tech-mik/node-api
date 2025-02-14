@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import { Controller } from '../decorators/controller'
 import { Route } from '../decorators/route'
+import { Auth } from '../decorators/auth'
 
 @Controller()
 class MainController {
