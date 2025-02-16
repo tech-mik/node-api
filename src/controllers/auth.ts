@@ -176,6 +176,7 @@ class AuthController {
                     return res.status(401).json({ message: 'Unauthorized' })
                 }
             } else {
+                console.log(decryptedRefreshToken)
             }
         } catch (error) {
             logging.error(error)
