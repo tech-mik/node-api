@@ -29,6 +29,7 @@ export const refreshTokens = pgTable('refresh_tokens', {
         .notNull()
         .references(() => users.userId, { onDelete: 'cascade' }), // Foreign Key to Users Table
     signature: varchar('signature').notNull(), // Stores browser/device details
+    ip: varchar('ip').notNull(), // IP Address
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 })
 

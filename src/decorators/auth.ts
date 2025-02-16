@@ -1,6 +1,6 @@
 import { RouteHandlers } from '../types/routes'
 import { authMiddlewareFactory } from '../middleware/authMiddleware'
-import { AuthOptions } from '../types/auth'
+import { AuthOptions, Roles } from '../types/auth'
 
 /**
  * Auth decorator
@@ -13,9 +13,18 @@ import { AuthOptions } from '../types/auth'
  * @param [authorization=null]
  * @param [strict=false]
  */
-export function Auth(authOptions: AuthOptions = { strict: true }) {
-    return function (controller: object, propertyKey: string, descriptor: PropertyDescriptor) {
-        const error = `Route decorator for handler [${propertyKey}] not defined yet. Make sure the Auth decorator is defined above the Route decorators.`
+
+export function Auth(authParams?: AuthOptions): MethodDecorator {
+    const authOptions: AuthOptions = {
+        strict: false,
+        roles: null,
+        ...authParams,
+    }
+
+    return function (controller: object, propertyKey: PropertyKey, descriptor: PropertyDescriptor) {
+        const error = `Route decorator for handler [${String(
+            propertyKey,
+        )}] not defined yet. Make sure the Auth decorator is defined above the Route decorators.`
         const routeHandlersMap: RouteHandlers = Reflect.getMetadata('routeHandlers', controller)
 
         if (!routeHandlersMap) throw new Error(error)

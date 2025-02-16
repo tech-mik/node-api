@@ -12,8 +12,8 @@ export enum AccountStatus {
 }
 
 export interface AuthOptions {
-    role?: Roles[] | null
-    strict: boolean
+    roles?: Roles[] | null
+    strict?: boolean
 }
 
 export interface AccessTokenJWT extends JwtPayload {

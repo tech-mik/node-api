@@ -9,7 +9,7 @@ import { Controller } from '../decorators/controller'
 import { Route } from '../decorators/route'
 import { selectUserByEmail } from '../lib/db'
 import { SessionTokenJWT } from '../types/auth'
-import { compareDeviceSignature, createHashedDeviceSignature, verifyJWT } from '../utils/auth'
+import { compareDeviceSignature, createHashedDeviceSignature, decryptToken, encryptToken, verifyJWT } from '../utils/auth'
 
 @Controller('/auth')
 class AuthController {
@@ -46,39 +46,36 @@ class AuthController {
      */
     @Route('post', '/login')
     async postLogin(req: Request, res: Response) {
-        // Get the email and password from the request body and validate them
+        /**
+         * Validate the request body
+         */
         const { success, data } = userLoginSchema.safeParse(req.body)
-        if (!success) {
-            res.status(400).json({ message: 'Invalid credentials' })
-            return
-        }
+        if (!success) return res.status(401).json({ message: 'Invalid credentials' })
 
         try {
             /**
              * Check if the user exists in the database
              */
             const user = await selectUserByEmail(data.email)
-            if (!user) {
-                res.status(400).json({ message: 'Invalid credentials' })
-                return
-            }
+            if (!user) return res.status(401).json({ message: 'Invalid credentials' })
 
             /**
              * Validate password
              */
             const { password, userId } = user
 
-            if (!bcrypt.compareSync(data.password, password)) {
-                res.status(400).json({ message: 'Invalid credentials' })
-                return
-            }
+            if (!bcrypt.compareSync(data.password, password)) return res.status(401).json({ message: 'Invalid credentials' })
 
             /**
              * Prepare the session and create tokens
              */
             const sessionId = randomUUID()
             const signature = createHashedDeviceSignature(req)
+            const ipAddress = bcrypt.hashSync(req.ip ?? 'unknown', 10)
 
+            /**
+             * Create an access_token
+             */
             const accessToken = jwt.sign(
                 {
                     sub: userId,
@@ -88,6 +85,9 @@ class AuthController {
                 { expiresIn: Number(process.env.ACCESS_TOKEN_EXPIRY) || '15m' },
             )
 
+            /**
+             * Create a session token
+             */
             const sessionToken = jwt.sign(
                 {
                     sub: userId,
@@ -97,6 +97,18 @@ class AuthController {
                 { expiresIn: Number(process.env.SESSION_TOKEN_EXPIRY) || '24h' },
             )
 
+            const encryptedSessionToken = encryptToken(sessionToken)
+
+            /**
+             * Set the session_token in the cookie
+             */
+            res.cookie('session_token', encryptedSessionToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'strict',
+                maxAge: 24 * 60 * 60 * 1000, // 24h
+            })
+
             /**
              * Insert refresh_token into the database
              */
@@ -104,14 +116,8 @@ class AuthController {
                 sessionId,
                 userId,
                 signature,
+                ip: ipAddress,
                 expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-            })
-
-            res.cookie('session_token', sessionToken, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: 'strict',
-                maxAge: 24 * 60 * 60 * 1000, // 24h
             })
 
             res.status(200).json({ accessToken })
@@ -124,18 +130,22 @@ class AuthController {
     /**
      * Refresh the access_token and session_token
      */
-    @Route('get', '/refresh')
-    async getRefresh(req: Request, res: Response) {
+    @Route('post', '/refresh')
+    async postRefresh(req: Request, res: Response) {
         const sessionToken = req.cookies?.session_token
 
-        if (!sessionToken) {
-            res.status(401).json({ message: 'Unauthorized' })
-            return
-        }
+        if (!sessionToken) return res.status(401).json({ message: 'Unauthorized' })
 
         try {
-            // First check if session_token is still valid
-            const validSessionToken = verifyJWT(sessionToken, process.env.SESSION_TOKEN_SECRET as string) as SessionTokenJWT | null
+            /**
+             * Decrypt the session token
+             */
+            const decryptedSessionToken = decryptToken(sessionToken)
+
+            /**
+             * Verify the session token
+             */
+            const validSessionToken = verifyJWT(decryptedSessionToken, process.env.SESSION_TOKEN_SECRET as string) as SessionTokenJWT | null
             if (!validSessionToken) {
                 // If not valid, check for a refresh_token in db
                 const { sessionId, sub: userId } = jwt.decode(sessionToken) as SessionTokenJWT
@@ -146,8 +156,7 @@ class AuthController {
 
                 if (!refreshToken.length) {
                     res.clearCookie('session_token')
-                    res.status(401).json({ message: 'Unauthorized' })
-                    return
+                    return res.status(401).json({ message: 'Unauthorized' })
                 }
 
                 // If refresh_token exists, check expiry and validate signature
@@ -156,30 +165,22 @@ class AuthController {
                 if (new Date(expiresAt) < new Date()) {
                     await db.delete(refreshTokens).where(and(eq(refreshTokens.sessionId, sessionId), eq(refreshTokens.userId, userId)))
                     res.clearCookie('session_token')
-                    res.status(401).json({ message: 'Unauthorized' })
-
-                    return
+                    return res.status(401).json({ message: 'Unauthorized' })
                 }
 
                 // Signature check
                 if (!compareDeviceSignature(req, signature)) {
                     await db.delete(refreshTokens).where(and(eq(refreshTokens.sessionId, sessionId), eq(refreshTokens.userId, userId)))
                     res.clearCookie('session_token')
-                    res.status(401).json({ message: 'Unauthorized' })
-
-                    return
+                    return res.status(401).json({ message: 'Unauthorized' })
                 }
+            } else {
+                console.log(decryptedSessionToken)
             }
         } catch (error) {
+            logging.error(error)
             res.status(501).json({ message: 'Internal server error' })
         }
-
-        // 1. Verify session token
-        // 2. Check if corresponding refreshToken in database exists and is not expired
-        // 3. Check if the device signature matches
-        // 4. Issue a new access token
-        // 5. Issue a new session token
-        // 6. Update the refresh token in the database
     }
 }
 
