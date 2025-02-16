@@ -94,8 +94,8 @@ class AuthController {
                     sub: userId,
                     sessionId,
                 },
-                process.env.SESSION_TOKEN_SECRET as string,
-                { expiresIn: Number(process.env.SESSION_TOKEN_EXPIRY) ?? '7d' },
+                process.env.REFRESH_TOKEN_SECRET as string,
+                { expiresIn: Number(process.env.REFRESH_TOKEN_EXPIRY) ?? '7d' },
             )
 
             const encryptedRefreshToken = encryptToken(refreshToken)
@@ -146,7 +146,7 @@ class AuthController {
             /**
              * Verify the session token
              */
-            const validRefreshToken = verifyJWT(decryptedRefreshToken, process.env.SESSION_TOKEN_SECRET as string) as RefreshTokenJWT | null
+            const validRefreshToken = verifyJWT(decryptedRefreshToken, process.env.REFRESH_TOKEN_SECRET as string) as RefreshTokenJWT | null
             if (!validRefreshToken) {
                 // If not valid, check for a refresh_token in db
                 const { sessionId, sub: userId } = jwt.decode(refreshToken) as RefreshTokenJWT
