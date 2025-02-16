@@ -12,7 +12,7 @@ export enum AccountStatus {
 }
 
 export interface AuthOptions {
-    roles?: Roles[] | null
+    role?: Roles | null
     strict?: boolean
 }
 
@@ -21,7 +21,7 @@ export interface AccessTokenJWT extends JwtPayload {
     role?: string
 }
 
-export interface SessionTokenJWT extends JwtPayload {
+export interface RefreshTokenJWT extends JwtPayload {
     sessionId: string
     sub: string
 }

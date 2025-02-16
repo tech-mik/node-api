@@ -8,8 +8,9 @@ import { refreshTokens, UserInsert, userLoginSchema, users } from '../db/schema'
 import { Controller } from '../decorators/controller'
 import { Route } from '../decorators/route'
 import { selectUserByEmail } from '../lib/db'
-import { SessionTokenJWT } from '../types/auth'
+import { RefreshTokenJWT } from '../types/auth'
 import { compareDeviceSignature, createHashedDeviceSignature, decryptToken, encryptToken, verifyJWT } from '../utils/auth'
+import { Auth } from '../decorators/auth'
 
 @Controller('/auth')
 class AuthController {
@@ -42,7 +43,7 @@ class AuthController {
     }
 
     /**
-     * Login a user and issue an access_token and session_token
+     * Login a user and issue an access_token and refresh_token
      */
     @Route('post', '/login')
     async postLogin(req: Request, res: Response) {
@@ -82,27 +83,27 @@ class AuthController {
                     role: user.role || '',
                 },
                 process.env.ACCESS_TOKEN_SECRET as string,
-                { expiresIn: Number(process.env.ACCESS_TOKEN_EXPIRY) || '15m' },
+                { expiresIn: Number(process.env.ACCESS_TOKEN_EXPIRY) ?? '10m' },
             )
 
             /**
              * Create a session token
              */
-            const sessionToken = jwt.sign(
+            const refreshToken = jwt.sign(
                 {
                     sub: userId,
                     sessionId,
                 },
                 process.env.SESSION_TOKEN_SECRET as string,
-                { expiresIn: Number(process.env.SESSION_TOKEN_EXPIRY) || '24h' },
+                { expiresIn: Number(process.env.SESSION_TOKEN_EXPIRY) ?? '7d' },
             )
 
-            const encryptedSessionToken = encryptToken(sessionToken)
+            const encryptedRefreshToken = encryptToken(refreshToken)
 
             /**
-             * Set the session_token in the cookie
+             * Set the refresh_token in the cookie
              */
-            res.cookie('session_token', encryptedSessionToken, {
+            res.cookie('token', encryptedRefreshToken, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
                 sameSite: 'strict',
@@ -128,54 +129,54 @@ class AuthController {
     }
 
     /**
-     * Refresh the access_token and session_token
+     * Refresh the access_token and refresh_token
      */
     @Route('post', '/refresh')
     async postRefresh(req: Request, res: Response) {
-        const sessionToken = req.cookies?.session_token
+        const refreshToken = req.cookies?.token
 
-        if (!sessionToken) return res.status(401).json({ message: 'Unauthorized' })
+        if (!refreshToken) return res.status(401).json({ message: 'Unauthorized' })
 
         try {
             /**
              * Decrypt the session token
              */
-            const decryptedSessionToken = decryptToken(sessionToken)
+            const decryptedRefreshToken = decryptToken(refreshToken)
 
             /**
              * Verify the session token
              */
-            const validSessionToken = verifyJWT(decryptedSessionToken, process.env.SESSION_TOKEN_SECRET as string) as SessionTokenJWT | null
-            if (!validSessionToken) {
+            const validRefreshToken = verifyJWT(decryptedRefreshToken, process.env.SESSION_TOKEN_SECRET as string) as RefreshTokenJWT | null
+            if (!validRefreshToken) {
                 // If not valid, check for a refresh_token in db
-                const { sessionId, sub: userId } = jwt.decode(sessionToken) as SessionTokenJWT
-                const refreshToken = await db
+                const { sessionId, sub: userId } = jwt.decode(refreshToken) as RefreshTokenJWT
+                const dbRefreshToken = await db
                     .select()
                     .from(refreshTokens)
                     .where(and(eq(refreshTokens.sessionId, sessionId), eq(refreshTokens.userId, userId)))
 
-                if (!refreshToken.length) {
-                    res.clearCookie('session_token')
+                if (!dbRefreshToken.length) {
+                    res.clearCookie('refresh_token')
                     return res.status(401).json({ message: 'Unauthorized' })
                 }
 
                 // If refresh_token exists, check expiry and validate signature
-                const { signature, expiresAt } = refreshToken[0]
+                const { signature, expiresAt } = dbRefreshToken[0]
                 // Expiry check
                 if (new Date(expiresAt) < new Date()) {
                     await db.delete(refreshTokens).where(and(eq(refreshTokens.sessionId, sessionId), eq(refreshTokens.userId, userId)))
-                    res.clearCookie('session_token')
+                    res.clearCookie('refresh_token')
                     return res.status(401).json({ message: 'Unauthorized' })
                 }
 
                 // Signature check
                 if (!compareDeviceSignature(req, signature)) {
                     await db.delete(refreshTokens).where(and(eq(refreshTokens.sessionId, sessionId), eq(refreshTokens.userId, userId)))
-                    res.clearCookie('session_token')
+                    res.clearCookie('refresh_token')
                     return res.status(401).json({ message: 'Unauthorized' })
                 }
             } else {
-                console.log(decryptedSessionToken)
+                console.log(decryptedRefreshToken)
             }
         } catch (error) {
             logging.error(error)

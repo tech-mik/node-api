@@ -17,7 +17,7 @@ import { AuthOptions, Roles } from '../types/auth'
 export function Auth(authParams?: AuthOptions): MethodDecorator {
     const authOptions: AuthOptions = {
         strict: false,
-        roles: null,
+        role: null,
         ...authParams,
     }
 
