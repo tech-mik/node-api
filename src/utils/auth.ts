@@ -43,7 +43,7 @@ export function compareDeviceSignature(req: Request, hashedSignature: string) {
     return bcrypt.compareSync(signature, hashedSignature)
 }
 
-const ENCRYPTION_KEY = process.env.SESSION_TOKEN_ENCRYPTION_KEY!
+const ENCRYPTION_KEY = process.env.REFRESH_TOKEN_ENCRYPTION_KEY!
 if (!ENCRYPTION_KEY) {
     throw new Error('ENCRYPTION_KEY is missing.')
 }
