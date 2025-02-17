@@ -2,6 +2,7 @@ import { InferInsertModel, InferSelectModel } from 'drizzle-orm'
 import { integer, pgTable, timestamp, uuid, varchar } from 'drizzle-orm/pg-core'
 import { createSelectSchema } from 'drizzle-zod'
 import { AccountStatus, Roles } from '../types/auth'
+import { relations } from 'drizzle-orm'
 
 export const users = pgTable('users', {
     userId: uuid('user_id').primaryKey().defaultRandom(), // Unique User ID
@@ -17,10 +18,10 @@ export const users = pgTable('users', {
 
 export type UserInsert = InferInsertModel<typeof users>
 export type UserSelect = InferSelectModel<typeof users>
+
 export const userSelectSchema = createSelectSchema(users, {
     email: (schema) => schema.email(),
 })
-
 export const userLoginSchema = userSelectSchema.pick({ email: true, password: true })
 
 export const refreshTokens = pgTable('refresh_tokens', {
@@ -33,5 +34,22 @@ export const refreshTokens = pgTable('refresh_tokens', {
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 })
 
+/**
+ * Define types for Refresh Tokens
+ */
 export type RefreshTokenInsert = typeof refreshTokens.$inferInsert
 export type RefreshTokenSelect = typeof refreshTokens.$inferSelect
+
+/**
+ * Define relations between tables
+ */
+export const usersRelations = relations(users, ({ many }) => ({
+    refreshTokens: many(refreshTokens),
+}))
+
+export const refreshTokensRelations = relations(refreshTokens, ({ one }) => ({
+    user: one(users, {
+        fields: [refreshTokens.userId],
+        references: [users.userId],
+    }),
+}))

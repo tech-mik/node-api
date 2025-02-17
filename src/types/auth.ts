@@ -17,11 +17,17 @@ export interface AuthOptions {
 }
 
 export interface AccessTokenJWT extends JwtPayload {
-    sub: string
+    sub?: string
     role?: string
 }
 
 export interface RefreshTokenJWT extends JwtPayload {
-    sessionId: string
-    sub: string
+    sessionId?: string
+    sub?: string
+}
+
+export interface ValidatedToken<T> {
+    valid: boolean
+    payload: T
+    expired?: boolean
 }

@@ -1,23 +1,50 @@
-import { Request } from 'express'
+import { Request, Response } from 'express'
 import bcrypt from 'bcrypt'
-import { verify, JwtPayload } from 'jsonwebtoken'
+import jwt, { verify, JwtPayload, decode, TokenExpiredError, JsonWebTokenError } from 'jsonwebtoken'
 import crypto from 'node:crypto'
+import { db } from '../db'
+import { refreshTokens, RefreshTokenSelect, UserSelect } from '../db/schema'
+import { and, eq } from 'drizzle-orm'
+import { AccessTokenJWT, ValidatedToken } from '../types/auth'
+import { DrizzleError } from 'drizzle-orm'
 
 /**
  * Verify JWT and return null if it fails
  */
-export function verifyJWT<T extends object = JwtPayload>(token: string, secret: string): T | null {
+export function verifyJWT<T extends JwtPayload>(token: string, secret: string): ValidatedToken<T> {
     try {
-        return verify(token, secret) as T
-    } catch {
-        return null
+        const payload = verify(token, secret) as T
+        return {
+            valid: true,
+            payload,
+        }
+    } catch (err) {
+        const payload = decode(token) as T
+        if (err instanceof TokenExpiredError) {
+            return {
+                valid: false,
+                payload,
+                expired: true,
+            }
+        } else if (err instanceof JsonWebTokenError) {
+            logging.warn(`Incorrect token or signature for user with id: ${payload.sub}`)
+
+            return {
+                valid: false,
+                payload,
+            }
+        }
+        return {
+            valid: false,
+            payload,
+        }
     }
 }
 
 /**
  * Generate a device signature based on the user agent, os, platform, accept-encoding and country
  */
-export function generateDeviceSignature(req: Request) {
+export function generateSessionSignature(req: Request) {
     const browser = req.useragent?.browser ?? 'unknown'
     const os = req.useragent?.os ?? 'unknown'
     const platform = req.useragent?.platform ?? 'unknown'
@@ -30,16 +57,16 @@ export function generateDeviceSignature(req: Request) {
 /**
  * Create a hashed device signature
  */
-export function createHashedDeviceSignature(req: Request) {
-    const signature = generateDeviceSignature(req)
+export function generateHashedSessionSignature(req: Request) {
+    const signature = generateSessionSignature(req)
     return bcrypt.hashSync(signature, 10)
 }
 
 /**
  * Compare the device signature with the hashed signature
  */
-export function compareDeviceSignature(req: Request, hashedSignature: string) {
-    const signature = generateDeviceSignature(req)
+export function verifySessionSignature(req: Request, hashedSignature: string) {
+    const signature = generateSessionSignature(req)
     return bcrypt.compareSync(signature, hashedSignature)
 }
 
@@ -86,4 +113,58 @@ export function decryptToken(encryptedToken: string): string {
     decrypted += decipher.final('utf8')
 
     return decrypted
+}
+
+export async function clearSession(sessionId: RefreshTokenSelect['sessionId'], userId: UserSelect['userId'], res: Response) {
+    try {
+        await db.delete(refreshTokens).where(and(eq(refreshTokens.sessionId, sessionId), eq(refreshTokens.userId, userId)))
+        res.clearCookie('token')
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(error.message)
+        } else if (error instanceof DrizzleError) {
+            throw new Error(error.message)
+        } else {
+            throw new Error('Something went wrong clearing the session')
+        }
+    }
+}
+/**
+ * Create an access_token
+ */
+export function generateAccessToken(userId: UserSelect['userId'], role: UserSelect['role']) {
+    return jwt.sign(
+        {
+            sub: userId,
+            role: role,
+        },
+        process.env.ACCESS_TOKEN_SECRET as string,
+        { expiresIn: Number(process.env.ACCESS_TOKEN_EXPIRY) ?? '10m' },
+    )
+}
+
+/**
+ * Create a session token
+ */
+export function generateRefreshToken(userId: UserSelect['userId'], sessionId: RefreshTokenSelect['sessionId']) {
+    return jwt.sign(
+        {
+            sub: userId,
+            sessionId,
+        },
+        process.env.REFRESH_TOKEN_SECRET as string,
+        { expiresIn: Number(process.env.REFRESH_TOKEN_EXPIRY) ?? '7d' },
+    )
+}
+
+/**
+ * Set the refresh_token in the cookie
+ */
+export function setTokenCookie(res: Response, token: string) {
+    res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: Number(process.env.REFRESH_TOKEN_EXPIRY ?? 7 * 60 * 60) * 1000,
+    })
 }

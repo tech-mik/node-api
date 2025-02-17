@@ -55,8 +55,6 @@ export function authMiddlewareFactory({ role, strict }: AuthOptions) {
                         return
                     }
 
-                    // TODO: Nadenken over of refresh_token wel een exp moet hebben van 24h, omdat hij toch altijd gecheckt wordt met de db en de db de enige bron van waarheid is. Plus de refresh_token wordt vernieuwd bij elke refresh
-
                     const dbRefreshToken = await db
                         .select()
                         .from(refreshTokens)
